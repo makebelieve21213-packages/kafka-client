@@ -1,10 +1,10 @@
 import { LoggerService } from "@makebelieve21213-packages/logger";
 import { RpcException } from "@nestjs/microservices";
 import { Test } from "@nestjs/testing";
-import { ModuleRef } from "@nestjs/core";
 import KafkaClientError from "src/errors/kafka-client.error";
 import KafkaConsumerService from "src/main/consumer/kafka-consumer.service";
 
+import type { ModuleRef } from "@nestjs/core";
 import type { TestingModule } from "@nestjs/testing";
 import type { EachMessagePayload, IHeaders, Kafka, Consumer } from "kafkajs";
 import type KafkaCore from "src/core/kafka.core";
@@ -1112,10 +1112,7 @@ describe("KafkaConsumerService", () => {
 			};
 			const eachMessageHandler = runCall.eachMessage;
 
-			const payload = createMockPayload(
-				"test-topic-1",
-				Buffer.from(JSON.stringify({ type: "TEST" }))
-			);
+			const payload = createMockPayload("test-topic-1", Buffer.from(JSON.stringify({ type: "TEST" })));
 
 			await eachMessageHandler(payload);
 
@@ -1144,10 +1141,7 @@ describe("KafkaConsumerService", () => {
 			};
 			const eachMessageHandler = runCall.eachMessage;
 
-			const payload = createMockPayload(
-				"test-topic-1",
-				Buffer.from(JSON.stringify({ type: "TEST" }))
-			);
+			const payload = createMockPayload("test-topic-1", Buffer.from(JSON.stringify({ type: "TEST" })));
 
 			await eachMessageHandler(payload);
 
@@ -1170,10 +1164,7 @@ describe("KafkaConsumerService", () => {
 			};
 			const eachMessageHandler = runCall.eachMessage;
 
-			const payload = createMockPayload(
-				"test-topic-1",
-				Buffer.from(JSON.stringify({ type: "TEST" }))
-			);
+			const payload = createMockPayload("test-topic-1", Buffer.from(JSON.stringify({ type: "TEST" })));
 
 			await eachMessageHandler(payload);
 
@@ -1249,10 +1240,7 @@ describe("KafkaConsumerService", () => {
 			};
 			const eachMessageHandler = runCall.eachMessage;
 
-			const payload = createMockPayload(
-				"test-topic-1",
-				Buffer.from(JSON.stringify({ type: "TEST" }))
-			);
+			const payload = createMockPayload("test-topic-1", Buffer.from(JSON.stringify({ type: "TEST" })));
 
 			await eachMessageHandler(payload);
 
@@ -1304,10 +1292,7 @@ describe("KafkaConsumerService", () => {
 			};
 			const eachMessageHandler = runCall.eachMessage;
 
-			const payload = createMockPayload(
-				"test-topic-1",
-				Buffer.from(JSON.stringify({ type: "TEST" }))
-			);
+			const payload = createMockPayload("test-topic-1", Buffer.from(JSON.stringify({ type: "TEST" })));
 
 			await eachMessageHandler(payload);
 

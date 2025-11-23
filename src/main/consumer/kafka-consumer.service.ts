@@ -6,12 +6,12 @@ import KafkaClientError from "src/errors/kafka-client.error";
 import KafkaClientService from "src/main/client/kafka-client.service";
 import { KafkaTopic } from "src/types/kafka-topics";
 
+import type { Type } from "@nestjs/common";
 import type { EachMessagePayload, IHeaders, Consumer } from "kafkajs";
 import type {
 	KafkaMessageHandler,
 	KafkaConsumerServiceOptions,
 } from "src/types/kafka-consumer-module.interface";
-import type { Type } from "@nestjs/common";
 
 /**
  * Сервис для получения и обработки сообщений из Kafka
