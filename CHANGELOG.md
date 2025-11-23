@@ -5,6 +5,15 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 и этот проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.0.2] - 2025-01-27
+
+### Исправлено
+- Исправлена инжекция зависимостей в messageHandler через использование ModuleRef вместо прямого создания экземпляра через `new`
+- Теперь messageHandler корректно получает зависимости из DI контейнера NestJS (LoggerService, KafkaConsumerService и т.д.)
+
+### Добавлено
+- Добавлена зависимость `@nestjs/core` в dependencies и peerDependencies
+
 ## [1.0.1] - 2025-11-23
 
 ### Изменено
