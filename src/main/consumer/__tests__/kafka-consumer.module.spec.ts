@@ -256,7 +256,12 @@ describe("KafkaConsumerModule", () => {
 				const handler = new MockMessageHandler();
 
 				// Вызываем useFactory с правильными параметрами
-				const createdService = serviceProvider.useFactory(mockOptions, handler, mockKafkaClientService, mockLogger);
+				const createdService = serviceProvider.useFactory(
+					mockOptions,
+					handler,
+					mockKafkaClientService,
+					mockLogger
+				);
 
 				// Проверяем, что создан экземпляр сервиса
 				expect(createdService).toBeDefined();

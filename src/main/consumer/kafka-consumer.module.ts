@@ -72,7 +72,12 @@ export default class KafkaConsumerModule {
 					// NestJS автоматически вызовет onModuleInit() - не нужно вызывать вручную
 					return new KafkaConsumerService(moduleOptions, messageHandler, kafkaClientService, logger);
 				},
-				inject: [KAFKA_CONSUMER_OPTIONS, KAFKA_MESSAGE_HANDLER_INSTANCE_TOKEN, KafkaClientService, LoggerService],
+				inject: [
+					KAFKA_CONSUMER_OPTIONS,
+					KAFKA_MESSAGE_HANDLER_INSTANCE_TOKEN,
+					KafkaClientService,
+					LoggerService,
+				],
 			},
 		];
 
