@@ -1,6 +1,6 @@
 {
   "name": "@makebelieve21213-packages/kafka-client",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Kafka client with Fire-and-Forget, Request-Reply patterns, Retry mechanism and DLQ handler",
   "type": "module",
   "main": "./dist/index.js",
