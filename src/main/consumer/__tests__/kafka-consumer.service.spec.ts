@@ -1,3 +1,4 @@
+import { LoggerService } from "@makebelieve21213-packages/logger";
 import { RpcException } from "@nestjs/microservices";
 import { Test } from "@nestjs/testing";
 import KafkaClientError from "src/errors/kafka-client.error";
@@ -14,14 +15,14 @@ import type {
 
 // Мокируем @makebelieve21213-packages/logger
 jest.mock("@makebelieve21213-packages/logger", () => ({
-	LoggerService: class MockLoggerService {
-		log = jest.fn();
-		error = jest.fn();
-		warn = jest.fn();
-		debug = jest.fn();
-		verbose = jest.fn();
-		setContext = jest.fn();
-	},
+	LoggerService: jest.fn().mockImplementation(() => ({
+		log: jest.fn(),
+		error: jest.fn(),
+		warn: jest.fn(),
+		debug: jest.fn(),
+		verbose: jest.fn(),
+		setContext: jest.fn(),
+	})),
 }));
 
 // Mock KafkaCore
@@ -35,6 +36,7 @@ describe("KafkaConsumerService", () => {
 	let mockKafkaClientService: jest.Mocked<KafkaClientService>;
 	let mockConsumer: jest.Mocked<Consumer>;
 	let mockKafka: jest.Mocked<Kafka>;
+	let mockLogger: jest.Mocked<LoggerService>;
 
 	// Mock класс для messageHandler
 	class MockMessageHandler implements KafkaMessageHandler {
@@ -68,6 +70,19 @@ describe("KafkaConsumerService", () => {
 		}) as unknown as EachMessagePayload;
 
 	beforeEach(async () => {
+		// Mock LoggerService
+		mockLogger = {
+			log: jest.fn(),
+			error: jest.fn(),
+			warn: jest.fn(),
+			debug: jest.fn(),
+			verbose: jest.fn(),
+			setContext: jest.fn(),
+		} as unknown as jest.Mocked<LoggerService>;
+
+		// Убеждаемся, что setContext возвращает undefined (void метод)
+		mockLogger.setContext.mockReturnValue(undefined);
+
 		// Mock MessageHandler
 		messageHandler = {
 			handleMessage: jest.fn().mockResolvedValue({ success: true }),
@@ -107,9 +122,13 @@ describe("KafkaConsumerService", () => {
 		module = await Test.createTestingModule({
 			providers: [
 				{
+					provide: LoggerService,
+					useValue: mockLogger,
+				},
+				{
 					provide: KafkaConsumerService,
 					useFactory: () =>
-						new KafkaConsumerService(mockOptions, messageHandler, mockKafkaClientService),
+						new KafkaConsumerService(mockOptions, messageHandler, mockKafkaClientService, mockLogger),
 				},
 			],
 		}).compile();
@@ -139,7 +158,8 @@ describe("KafkaConsumerService", () => {
 			const testService = new KafkaConsumerService(
 				mockOptions,
 				messageHandler,
-				mockKafkaClientService
+				mockKafkaClientService,
+				mockLogger
 			);
 
 			expect(testService).toBeDefined();
@@ -150,7 +170,8 @@ describe("KafkaConsumerService", () => {
 			const testService = new KafkaConsumerService(
 				mockOptions,
 				messageHandler,
-				mockKafkaClientService
+				mockKafkaClientService,
+				mockLogger
 			);
 
 			// Проверяем, что kafkaClientService используется при инициализации
@@ -171,7 +192,8 @@ describe("KafkaConsumerService", () => {
 			const testService = new KafkaConsumerService(
 				mockOptions,
 				messageHandler,
-				customMockKafkaClientService
+				customMockKafkaClientService,
+				mockLogger
 			);
 
 			// Проверяем, что параметр был передан и используется
@@ -195,7 +217,8 @@ describe("KafkaConsumerService", () => {
 			const testService = new KafkaConsumerService(
 				mockOptions,
 				messageHandler,
-				trackedMockKafkaClientService
+				trackedMockKafkaClientService,
+				mockLogger
 			);
 
 			await testService.onModuleInit();
@@ -275,7 +298,8 @@ describe("KafkaConsumerService", () => {
 			const invalidService = new KafkaConsumerService(
 				invalidOptions,
 				messageHandler,
-				mockKafkaClientService
+				mockKafkaClientService,
+				mockLogger
 			);
 			await expect(invalidService.onModuleInit()).rejects.toThrow(KafkaClientError);
 			await expect(invalidService.onModuleInit()).rejects.toThrow(
@@ -290,7 +314,8 @@ describe("KafkaConsumerService", () => {
 			const testService1 = new KafkaConsumerService(
 				mockOptions,
 				messageHandler,
-				mockKafkaClientService
+				mockKafkaClientService,
+				mockLogger
 			);
 
 			await expect(testService1.onModuleInit()).rejects.toThrow(KafkaClientError);
@@ -299,7 +324,8 @@ describe("KafkaConsumerService", () => {
 			const testService2 = new KafkaConsumerService(
 				mockOptions,
 				messageHandler,
-				mockKafkaClientService
+				mockKafkaClientService,
+				mockLogger
 			);
 
 			await expect(testService2.onModuleInit()).rejects.toThrow("Connection failed");
@@ -312,7 +338,8 @@ describe("KafkaConsumerService", () => {
 			const testService1 = new KafkaConsumerService(
 				mockOptions,
 				messageHandler,
-				mockKafkaClientService
+				mockKafkaClientService,
+				mockLogger
 			);
 
 			await expect(testService1.onModuleInit()).rejects.toThrow(KafkaClientError);
@@ -321,7 +348,8 @@ describe("KafkaConsumerService", () => {
 			const testService2 = new KafkaConsumerService(
 				mockOptions,
 				messageHandler,
-				mockKafkaClientService
+				mockKafkaClientService,
+				mockLogger
 			);
 
 			await expect(testService2.onModuleInit()).rejects.toThrow("String error message");
@@ -979,7 +1007,8 @@ describe("KafkaConsumerService", () => {
 			const uninitializedService = new KafkaConsumerService(
 				mockOptions,
 				messageHandler,
-				mockKafkaClientService
+				mockKafkaClientService,
+				mockLogger
 			);
 
 			// Пытаемся вызвать приватный метод subscribeToTopics через инициализацию
@@ -993,7 +1022,8 @@ describe("KafkaConsumerService", () => {
 			const uninitializedService = new KafkaConsumerService(
 				mockOptions,
 				messageHandler,
-				mockKafkaClientService
+				mockKafkaClientService,
+				mockLogger
 			);
 
 			// Используем reflection для вызова приватного метода напрямую
@@ -1009,7 +1039,8 @@ describe("KafkaConsumerService", () => {
 			const uninitializedService = new KafkaConsumerService(
 				mockOptions,
 				messageHandler,
-				mockKafkaClientService
+				mockKafkaClientService,
+				mockLogger
 			);
 
 			// Используем reflection для вызова приватного метода напрямую
@@ -1026,7 +1057,8 @@ describe("KafkaConsumerService", () => {
 			const uninitializedService = new KafkaConsumerService(
 				mockOptions,
 				messageHandler,
-				mockKafkaClientService
+				mockKafkaClientService,
+				mockLogger
 			);
 
 			// Используем reflection для вызова приватного метода напрямую

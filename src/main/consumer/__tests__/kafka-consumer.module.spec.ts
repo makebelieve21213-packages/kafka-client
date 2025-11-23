@@ -1,5 +1,7 @@
+import { LoggerService } from "@makebelieve21213-packages/logger";
 import { Injectable } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
+import KafkaClientService from "src/main/client/kafka-client.service";
 import KafkaConsumerModule from "src/main/consumer/kafka-consumer.module";
 import KafkaConsumerService from "src/main/consumer/kafka-consumer.service";
 import {
@@ -16,14 +18,14 @@ import type {
 
 // Мокируем @makebelieve21213-packages/logger
 jest.mock("@makebelieve21213-packages/logger", () => ({
-	LoggerService: class MockLoggerService {
-		log = jest.fn();
-		error = jest.fn();
-		warn = jest.fn();
-		debug = jest.fn();
-		verbose = jest.fn();
-		setContext = jest.fn();
-	},
+	LoggerService: jest.fn().mockImplementation(() => ({
+		log: jest.fn(),
+		error: jest.fn(),
+		warn: jest.fn(),
+		debug: jest.fn(),
+		verbose: jest.fn(),
+		setContext: jest.fn(),
+	})),
 }));
 
 // Mock handler для тестов
@@ -152,6 +154,8 @@ describe("KafkaConsumerModule", () => {
 			if (typeof serviceProvider === "object" && "inject" in serviceProvider) {
 				expect(serviceProvider.inject).toContain(KAFKA_CONSUMER_OPTIONS);
 				expect(serviceProvider.inject).toContain(KAFKA_MESSAGE_HANDLER_INSTANCE_TOKEN);
+				expect(serviceProvider.inject).toContain(KafkaClientService);
+				expect(serviceProvider.inject).toContain(LoggerService);
 			}
 		});
 
@@ -194,9 +198,11 @@ describe("KafkaConsumerModule", () => {
 				expect(typeof serviceProvider.useFactory).toBe("function");
 
 				// Проверяем, что useFactory принимает правильные параметры
-				expect(serviceProvider.inject).toHaveLength(3);
+				expect(serviceProvider.inject).toHaveLength(4);
 				expect(serviceProvider.inject).toContain(KAFKA_CONSUMER_OPTIONS);
 				expect(serviceProvider.inject).toContain(KAFKA_MESSAGE_HANDLER_INSTANCE_TOKEN);
+				expect(serviceProvider.inject).toContain(KafkaClientService);
+				expect(serviceProvider.inject).toContain(LoggerService);
 			}
 		});
 
@@ -216,6 +222,16 @@ describe("KafkaConsumerModule", () => {
 				}),
 				isConnected: jest.fn().mockReturnValue(true),
 			};
+
+			// Мокаем LoggerService
+			const mockLogger: jest.Mocked<LoggerService> = {
+				log: jest.fn(),
+				error: jest.fn(),
+				warn: jest.fn(),
+				debug: jest.fn(),
+				verbose: jest.fn(),
+				setContext: jest.fn(),
+			} as unknown as jest.Mocked<LoggerService>;
 
 			// Мокаем onModuleInit чтобы убедиться, что он НЕ вызывается в useFactory
 			const onModuleInitSpy = jest
@@ -240,7 +256,7 @@ describe("KafkaConsumerModule", () => {
 				const handler = new MockMessageHandler();
 
 				// Вызываем useFactory с правильными параметрами
-				const createdService = serviceProvider.useFactory(mockOptions, handler, mockKafkaClientService);
+				const createdService = serviceProvider.useFactory(mockOptions, handler, mockKafkaClientService, mockLogger);
 
 				// Проверяем, что создан экземпляр сервиса
 				expect(createdService).toBeDefined();

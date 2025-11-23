@@ -5,6 +5,12 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 и этот проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.0.3] - 2025-01-27
+
+### Исправлено
+- Исправлена инжекция LoggerService в KafkaConsumerService - теперь LoggerService инжектируется через конструктор вместо создания через `new Logger()`
+- KafkaConsumerService теперь использует единообразный подход к инжекции зависимостей, как и KafkaProducerService и KafkaClientService
+
 ## [1.0.2] - 2025-01-27
 
 ### Исправлено

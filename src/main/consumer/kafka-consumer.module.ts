@@ -1,3 +1,4 @@
+import { LoggerService } from "@makebelieve21213-packages/logger";
 import { Module, Global, DynamicModule, Provider, Type } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
 import KafkaClientService from "src/main/client/kafka-client.service";
@@ -65,12 +66,13 @@ export default class KafkaConsumerModule {
 				useFactory: (
 					moduleOptions: KafkaConsumerModuleOptions,
 					messageHandler: KafkaMessageHandler,
-					kafkaClientService: KafkaClientService
+					kafkaClientService: KafkaClientService,
+					logger: LoggerService
 				): KafkaConsumerService => {
 					// NestJS автоматически вызовет onModuleInit() - не нужно вызывать вручную
-					return new KafkaConsumerService(moduleOptions, messageHandler, kafkaClientService);
+					return new KafkaConsumerService(moduleOptions, messageHandler, kafkaClientService, logger);
 				},
-				inject: [KAFKA_CONSUMER_OPTIONS, KAFKA_MESSAGE_HANDLER_INSTANCE_TOKEN, KafkaClientService],
+				inject: [KAFKA_CONSUMER_OPTIONS, KAFKA_MESSAGE_HANDLER_INSTANCE_TOKEN, KafkaClientService, LoggerService],
 			},
 		];
 

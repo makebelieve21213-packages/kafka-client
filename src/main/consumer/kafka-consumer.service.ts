@@ -1,4 +1,5 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from "@nestjs/common";
+import { LoggerService } from "@makebelieve21213-packages/logger";
+import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
 import { RpcException } from "@nestjs/microservices";
 import KafkaClientError from "src/errors/kafka-client.error";
 import KafkaClientService from "src/main/client/kafka-client.service";
@@ -18,13 +19,15 @@ import type {
 @Injectable()
 export default class KafkaConsumerService implements OnModuleInit, OnModuleDestroy {
 	private consumer?: Consumer;
-	private readonly logger = new Logger(KafkaConsumerService.name);
 
 	constructor(
 		private readonly options: KafkaConsumerServiceOptions,
 		private readonly messageHandler: KafkaMessageHandler,
-		private readonly kafkaClientService: KafkaClientService
-	) {}
+		private readonly kafkaClientService: KafkaClientService,
+		private readonly logger: LoggerService
+	) {
+		this.logger.setContext(KafkaConsumerService.name);
+	}
 
 	// Инициализация Kafka consumer при старте модуля
 	async onModuleInit(): Promise<void> {
