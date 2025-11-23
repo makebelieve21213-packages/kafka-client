@@ -1,0 +1,348 @@
+# @packages/kafka-client - Документация для ИИ
+
+## Краткое описание
+
+Полнофункциональный Kafka клиент для NestJS с поддержкой паттернов Fire-and-Forget, Request-Reply, Retry механизмом и Dead Letter Queue (DLQ). Предоставляет готовые NestJS модули для простой интеграции и низкоуровневый API для сложных сценариев.
+
+## Архитектура
+
+Пакет предоставляет два способа использования:
+
+1. **NestJS модули (РЕКОМЕНДУЕТСЯ)** - готовые глобальные модули для интеграции
+2. **Низкоуровневый API** - прямой доступ к KafkaCore
+
+## Структура пакета
+
+```
+src/
+├── core/                          # Низкоуровневый API
+│   ├── kafka.core.ts              # KafkaCore - основной класс
+│   ├── patterns/                  # Паттерны отправки сообщений
+│   │   ├── fire-and-forget.pattern.ts    # Fire-and-Forget паттерн
+│   │   └── request-reply.pattern.ts      # Request-Reply паттерн
+│   └── retry/                     # Retry и DLQ механизмы
+│       ├── retry-handler.ts       # Обработка retry с exponential backoff
+│       └── dlq-handler.ts         # Обработка Dead Letter Queue
+│
+├── main/                          # NestJS модули
+│   ├── client/                    # Базовый модуль подключения
+│   │   ├── kafka-client.module.ts # KafkaClientModule - базовый модуль
+│   │   └── kafka-client.service.ts # KafkaClientService - единое подключение
+│   ├── producer/                  # Producer модуль
+│   │   ├── kafka-producer.module.ts # KafkaProducerModule
+│   │   └── kafka-producer.service.ts # KafkaProducerService - отправка сообщений
+│   └── consumer/                  # Consumer модуль
+│       ├── kafka-consumer.module.ts # KafkaConsumerModule
+│       └── kafka-consumer.service.ts # KafkaConsumerService - получение сообщений
+│
+├── types/                         # TypeScript типы и интерфейсы
+│   ├── kafka-topics.ts           # Enum KafkaTopic и конфигурация топиков
+│   ├── kafka-message.ts          # Типы сообщений
+│   ├── module-options.interface.ts # Опции модулей
+│   ├── kafka-core.options.interface.ts # Опции KafkaCore
+│   ├── request-reply-options.interface.ts # Опции Request-Reply
+│   ├── retry-handler.interface.ts # Опции Retry
+│   └── dlq-handler.interface.ts  # Опции DLQ
+│
+├── errors/                        # Кастомные ошибки
+│   ├── kafka-client.error.ts      # KafkaClientError
+│   └── rpc-request.error.ts      # RpcRequestError
+│
+└── index.ts                       # Точка входа - экспорты всех публичных API
+```
+
+## Основные компоненты
+
+### KafkaCore (низкоуровневый API)
+
+Основной класс для работы с Kafka. Предоставляет:
+- `fireAndForget: FireAndForgetPattern` - отправка сообщений без ожидания ответа
+- `requestReply?: RequestReplyPattern` - Request-Reply паттерн (после инициализации)
+- `retryHandler: RetryHandler` - обработка retry с exponential backoff
+- `dlqHandler?: DLQHandler` - обработка DLQ (опционально)
+
+Методы:
+- `connect()` - подключение к Kafka
+- `disconnect()` - отключение от Kafka
+- `initRequestReply(responseTopics, options?)` - инициализация Request-Reply паттерна
+- `getConnectionStatus()` - статус подключения
+- `createConsumer(groupId, config?)` - создание нового consumer с уникальным groupId
+
+### NestJS модули
+
+#### KafkaClientModule
+
+Базовый модуль для единого подключения к Kafka. Должен быть импортирован ПЕРЕД KafkaProducerModule и KafkaConsumerModule.
+
+Методы инициализации:
+- `forRoot(options)` - синхронная инициализация
+- `forRootAsync(options)` - асинхронная инициализация через useFactory
+
+Опции:
+- `brokers: string[]` - адреса Kafka брокеров
+- `clientId: string` - ID клиента
+- `responseTopics?: string[]` - топики для ответов (для Request-Reply)
+- `defaultTimeout?: number` - таймаут по умолчанию (мс)
+- `connectionTimeout?: number` - таймаут подключения (мс, по умолчанию 10000)
+- `requestTimeout?: number` - таймаут запроса (мс, по умолчанию 30000)
+- `retry?: { retries?, initialRetryTime?, maxRetryTime? }` - настройки retry для подключения
+
+Экспортирует: `KafkaClientService` (для внутреннего использования)
+
+#### KafkaProducerModule
+
+Модуль для отправки сообщений. Требует импорта KafkaClientModule перед собой.
+
+Метод инициализации:
+- `forRoot()` - без параметров
+
+Экспортирует: `KafkaProducerService`
+
+#### KafkaProducerService
+
+Сервис для отправки сообщений через Kafka.
+
+Методы:
+- `sendCommand<TRequest, TResponse>(commandTopic, responseTopic, message, timeout?, additionalHeaders?)` - Request-Reply паттерн
+  - `commandTopic: KafkaTopic` - топик для отправки команды
+  - `responseTopic: KafkaTopic` - топик для получения ответа
+  - `message: TRequest` - сообщение для отправки
+  - `timeout?: number` - таймаут ожидания ответа (мс, опционально, по умолчанию 30000)
+  - `additionalHeaders?: Record<string, string>` - дополнительные заголовки (опционально)
+  - Возвращает: `Promise<TResponse>`
+- `sendFireAndForget<T>(topic, message)` - Fire-and-Forget паттерн
+  - `topic: KafkaTopic` - топик для отправки
+  - `message: T` - сообщение для отправки
+  - Возвращает: `Promise<void>`
+- `isConnected()` - проверка статуса подключения
+  - Возвращает: `boolean`
+
+#### KafkaConsumerModule
+
+Модуль для получения и обработки сообщений. Требует импорта KafkaClientModule перед собой.
+
+Метод инициализации:
+- `forRoot(options)` - с опциями:
+  - `topics: KafkaTopic[]` - массив топиков для подписки
+  - `groupId: string` - уникальный ID consumer group
+  - `messageHandler: KafkaMessageHandler` - класс handler'а
+  - `imports?: Module[]` - дополнительные модули для DI зависимостей handler'а
+
+Экспортирует: `KafkaConsumerService`, `messageHandler` (ваш handler)
+
+#### KafkaMessageHandler (интерфейс)
+
+Интерфейс для обработчиков сообщений:
+
+```typescript
+interface KafkaMessageHandler {
+  handleMessage(
+    topic: string, 
+    message: unknown, 
+    headers?: Record<string, string>
+  ): Promise<unknown>;
+}
+```
+
+Параметры:
+- `topic: string` - название топика
+- `message: unknown` - распарсенное сообщение (JSON объект)
+- `headers?: Record<string, string>` - заголовки сообщения (опционально)
+
+Возвращаемое значение:
+- Если возвращаете объект → отправится как ответ (Request-Reply)
+- Если возвращаете `undefined` → ответ не отправляется (Fire-and-Forget)
+- Если выбрасываете `RpcException` → отправится ответ с ошибкой
+
+## Паттерны
+
+### Fire-and-Forget
+
+Отправка сообщений без ожидания ответа. Используется для событий и уведомлений.
+
+Пример:
+```typescript
+await kafkaProducer.sendFireAndForget(
+  KafkaTopic.DASHBOARD_ALERTS_EVENTS,
+  { userId: '123', alert: { ... } }
+);
+```
+
+### Request-Reply
+
+Отправка команды с ожиданием ответа через correlation ID.
+
+Как работает:
+1. Producer отправляет команду с `correlation-id` в command топик
+2. Consumer получает команду, обрабатывает через `handleMessage()`
+3. Consumer отправляет ответ с тем же `correlation-id` в response топик
+4. Producer получает ответ и возвращает через Promise
+
+Автоматически:
+- Генерация `correlation-id`
+- Добавление headers (`correlation-id`, `reply-to`, `message-type`, `timestamp`, дополнительные заголовки)
+- Преобразование заголовков Kafka в `Record<string, string>` для handler
+- Timeout обработка
+- Отправка ответа с правильным `correlation-id`
+- Обработка ошибок через `RpcException` с извлечением `statusCode`
+
+Пример:
+```typescript
+const response = await kafkaProducer.sendCommand(
+  KafkaTopic.DASHBOARD_BYBIT_COMMANDS,
+  KafkaTopic.DASHBOARD_BYBIT_RESPONSES,
+  command,
+  30000, // timeout
+  { 'user-id': '123' } // дополнительные заголовки
+);
+```
+
+## Retry механизм
+
+Автоматические повторные попытки с exponential backoff.
+
+Настройки:
+- `maxRetries: number` - максимум попыток (по умолчанию 3)
+- `baseDelay: number` - базовая задержка в мс (по умолчанию 1000)
+- `useExponentialBackoff: boolean` - использовать exponential backoff (по умолчанию true)
+
+Формула задержки: `delay = baseDelay * 2^(retryCount - 1)`
+
+Пример:
+- 1-я попытка: 1000ms
+- 2-я попытка: 2000ms
+- 3-я попытка: 4000ms
+
+## Dead Letter Queue (DLQ)
+
+После `maxRetries` попыток сообщение автоматически отправляется в DLQ топик.
+
+DLQ топик: `{original-topic}-dlq`
+
+Пример: `dashboard-bybit-commands` → `dashboard-bybit-dlq`
+
+Headers в DLQ:
+- `original-topic` - исходный топик
+- `error` - текст ошибки
+- `error-stack` - stack trace
+- `failed-at` - timestamp
+- `total-retries` - количество попыток
+
+## Типы топиков
+
+Enum `KafkaTopic` содержит все доступные топики:
+
+- `DASHBOARD_BYBIT_COMMANDS` / `DASHBOARD_BYBIT_RESPONSES` / `DASHBOARD_BYBIT_DLQ`
+- `DASHBOARD_ALERTS_COMMANDS` / `DASHBOARD_ALERTS_RESPONSES` / `DASHBOARD_ALERTS_EVENTS` / `DASHBOARD_ALERTS_DLQ`
+- `DASHBOARD_SETTINGS_COMMANDS` / `DASHBOARD_SETTINGS_RESPONSES` / `DASHBOARD_SETTINGS_DLQ`
+- `CHAT_SERVICE_COMMANDS` / `CHAT_SERVICE_RESPONSES` / `CHAT_SERVICE_STREAMING` / `CHAT_SERVICE_DLQ`
+- `MCP_TOOLS_COMMANDS` / `MCP_TOOLS_RESPONSES` / `MCP_TOOLS_DLQ`
+- `SYSTEM_ERRORS`
+
+Каждый топик имеет конфигурацию в `KAFKA_TOPIC_CONFIG` с настройками партиций и retention.
+
+## Обработка ошибок
+
+### В Consumer (handler)
+
+Используйте `RpcException` для возврата ошибок:
+
+```typescript
+import { RpcException } from '@nestjs/microservices';
+import { HttpStatus } from '@packages/types';
+
+throw new RpcException({
+  statusCode: HttpStatus.BAD_REQUEST,
+  message: 'Invalid API key',
+  error: 'ValidationError',
+});
+```
+
+### В Producer
+
+Ошибки автоматически преобразуются в `RpcRequestError` с полями:
+- `statusCode: HttpStatus` - HTTP статус код
+- `message: string` - сообщение об ошибке
+- `errorName: string` - название ошибки
+
+## Порядок импорта модулей
+
+ВАЖНО: Строгий порядок импорта модулей:
+
+1. `KafkaClientModule.forRoot()` или `KafkaClientModule.forRootAsync()` - БАЗОВЫЙ модуль (обязательно первым!)
+2. `KafkaProducerModule.forRoot()` - для отправки сообщений
+3. `KafkaConsumerModule.forRoot()` - для получения сообщений
+
+## Переменные окружения
+
+Требуемые переменные:
+- `KAFKA_BROKERS` - адреса брокеров (например, `localhost:9093` или `kafka:9092`)
+- `KAFKA_CLIENT_ID` - ID клиента (например, `api-service` или `dashboard-service`)
+
+## Экспорты (index.ts)
+
+Пакет экспортирует:
+
+Модули:
+- `KafkaClientModule` (default export)
+- `KafkaProducerModule` (default export)
+- `KafkaConsumerModule` (default export)
+
+Сервисы:
+- `KafkaProducerService` (default export)
+- `KafkaConsumerService` (default export)
+
+Типы:
+- `KafkaTopic` (enum)
+- `KAFKA_TOPIC_CONFIG` (конфигурация топиков)
+- `TopicConfig` (интерфейс)
+- `KafkaMessageHandler` (интерфейс)
+- `KafkaClientModuleOptions` / `KafkaClientModuleAsyncOptions`
+- `KafkaProducerModuleOptions` / `KafkaProducerModuleAsyncOptions`
+- `KafkaConsumerModuleOptions` / `KafkaConsumerModuleAsyncOptions`
+
+Ошибки:
+- `RpcRequestError` (default export)
+- `KafkaClientError` (default export)
+
+## Типичные сценарии использования
+
+### api-service (отправляет команды)
+
+1. Импортировать `KafkaClientModule.forRootAsync()` с `responseTopics`
+2. Импортировать `KafkaProducerModule.forRoot()`
+3. Использовать `KafkaProducerService.sendCommand()` для Request-Reply
+4. Использовать `KafkaProducerService.sendFireAndForget()` для Fire-and-Forget
+
+### dashboard-service (обрабатывает команды)
+
+1. Импортировать `KafkaClientModule.forRootAsync()`
+2. Импортировать `KafkaConsumerModule.forRoot()` с `topics` и `messageHandler`
+3. Реализовать `KafkaMessageHandler` интерфейс в handler'е
+4. Обработать команды через `handleMessage()`
+5. Возвращать результат для Request-Reply или `undefined` для Fire-and-Forget
+
+## Важные замечания
+
+1. **Порядок импорта**: KafkaClientModule всегда должен быть первым
+2. **Request-Reply инициализация**: Требует указания `responseTopics` в KafkaClientModule
+3. **Handler зависимости**: Добавляйте необходимые модули в `imports` опции KafkaConsumerModule
+4. **Graceful shutdown**: Все модули автоматически отключаются при остановке приложения
+5. **Единое подключение**: KafkaClientService создает единое подключение для всего приложения
+6. **Уникальные groupId**: Каждый KafkaConsumerModule должен иметь уникальный `groupId`
+7. **Headers**: Заголовки автоматически преобразуются из формата Kafka в `Record<string, string>`
+8. **Timeout**: По умолчанию 30 секунд, можно переопределить в `sendCommand()`
+
+## Тестирование
+
+Пакет имеет 100% покрытие тестами. Все компоненты протестированы через Jest.
+
+## Зависимости
+
+- `kafkajs` - Kafka клиент
+- `@nestjs/common` - NestJS core
+- `@nestjs/microservices` - NestJS microservices (для RpcException)
+- `@nestjs/config` - NestJS config (опционально, для async конфигурации)
+- `@makebelieve21213-packages/logger` - Логирование
+- `reflect-metadata` - TypeScript decorators
+- `rxjs` - Reactive extensions

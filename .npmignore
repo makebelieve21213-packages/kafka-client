@@ -1,0 +1,40 @@
+# Исходный код (публикуется только dist)
+src/
+*.ts
+!*.d.ts
+
+# Тесты
+**/__tests__/
+**/*.spec.ts
+jest.config.ts
+coverage/
+
+# Документация разработки
+llms.txt
+CONTRIBUTING.md
+CHANGELOG.md
+
+# Конфигурация разработки
+tsconfig.json
+tsconfig.tsbuildinfo
+eslint.config.ts
+.prettierrc
+.prettierignore
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.cursor/
+
+# CI/CD
+.github/
+
+# Зависимости (устанавливаются при установке пакета)
+node_modules/
+pnpm-lock.yaml
