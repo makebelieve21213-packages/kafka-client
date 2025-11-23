@@ -92,8 +92,6 @@ docker build -t kafka-client:latest .
 ### Использование в docker-compose.yml
 
 ```yaml
-version: '3.8'
-
 services:
   kafka:
     image: confluentinc/cp-kafka:latest
