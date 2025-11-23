@@ -1,5 +1,6 @@
 import { LoggerService } from "@makebelieve21213-packages/logger";
 import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import { ModuleRef } from "@nestjs/core";
 import { RpcException } from "@nestjs/microservices";
 import KafkaClientError from "src/errors/kafka-client.error";
 import KafkaClientService from "src/main/client/kafka-client.service";
@@ -10,6 +11,7 @@ import type {
 	KafkaMessageHandler,
 	KafkaConsumerServiceOptions,
 } from "src/types/kafka-consumer-module.interface";
+import type { Type } from "@nestjs/common";
 
 /**
  * Сервис для получения и обработки сообщений из Kafka
@@ -19,14 +21,35 @@ import type {
 @Injectable()
 export default class KafkaConsumerService implements OnModuleInit, OnModuleDestroy {
 	private consumer?: Consumer;
+	private handlerClass?: Type<KafkaMessageHandler>;
+	private moduleRef?: ModuleRef;
 
 	constructor(
 		private readonly options: KafkaConsumerServiceOptions,
-		private readonly messageHandler: KafkaMessageHandler,
+		private readonly messageHandler: KafkaMessageHandler | null,
 		private readonly kafkaClientService: KafkaClientService,
 		private readonly logger: LoggerService
 	) {
 		this.logger.setContext(KafkaConsumerService.name);
+	}
+
+	// Установка зависимостей для ленивой инициализации handler'а
+	setLazyHandlerDependencies(handlerClass: Type<KafkaMessageHandler>, moduleRef: ModuleRef): void {
+		this.handlerClass = handlerClass;
+		this.moduleRef = moduleRef;
+	}
+
+	// Получение handler'а с ленивой инициализацией
+	private getHandler(): KafkaMessageHandler {
+		// Если handler уже был передан в конструкторе, используем его
+		if (this.messageHandler) {
+			return this.messageHandler;
+		}
+		// Иначе получаем через ModuleRef
+		if (this.handlerClass && this.moduleRef) {
+			return this.moduleRef.get(this.handlerClass, { strict: false });
+		}
+		throw new KafkaClientError("Message handler not available", "HANDLER_NOT_AVAILABLE");
 	}
 
 	// Инициализация Kafka consumer при старте модуля
@@ -118,7 +141,8 @@ export default class KafkaConsumerService implements OnModuleInit, OnModuleDestr
 			this.logger.log(`Processing message from topic ${topic}`);
 
 			// Делегируем обработку handler'у с заголовками
-			const response = await this.messageHandler.handleMessage(topic, parsedMessage, headers);
+			const handler = this.messageHandler || this.getHandler();
+			const response = await handler.handleMessage(topic, parsedMessage, headers);
 
 			// Если есть reply-to, отправляем ответ
 			if (correlationId && replyTo) {

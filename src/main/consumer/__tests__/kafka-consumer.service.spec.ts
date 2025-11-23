@@ -1,6 +1,7 @@
 import { LoggerService } from "@makebelieve21213-packages/logger";
 import { RpcException } from "@nestjs/microservices";
 import { Test } from "@nestjs/testing";
+import { ModuleRef } from "@nestjs/core";
 import KafkaClientError from "src/errors/kafka-client.error";
 import KafkaConsumerService from "src/main/consumer/kafka-consumer.service";
 
@@ -1069,6 +1070,380 @@ describe("KafkaConsumerService", () => {
 
 			const result = getHeaderValueMethod({ "some-header": "value" }, "nonexistent-header");
 			expect(result).toBeUndefined();
+		});
+	});
+
+	describe("setLazyHandlerDependencies", () => {
+		it("должен установить handlerClass и moduleRef", () => {
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				null,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			const mockModuleRef = {
+				get: jest.fn().mockReturnValue(new MockMessageHandler()),
+			} as unknown as ModuleRef;
+
+			testService.setLazyHandlerDependencies(MockMessageHandler, mockModuleRef);
+
+			// Проверяем через reflection, что поля установлены
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			expect((testService as any).handlerClass).toBe(MockMessageHandler);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			expect((testService as any).moduleRef).toBe(mockModuleRef);
+		});
+	});
+
+	describe("ленивая инициализация handler'а", () => {
+		it("должен использовать handler из конструктора если он передан", async () => {
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				messageHandler,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			await testService.onModuleInit();
+
+			const runCall = mockConsumer.run.mock.calls[0]?.[0] as {
+				eachMessage: (payload: EachMessagePayload) => Promise<void>;
+			};
+			const eachMessageHandler = runCall.eachMessage;
+
+			const payload = createMockPayload(
+				"test-topic-1",
+				Buffer.from(JSON.stringify({ type: "TEST" }))
+			);
+
+			await eachMessageHandler(payload);
+
+			expect(messageHandler.handleMessage).toHaveBeenCalledTimes(1);
+		});
+
+		it("должен получить handler через ModuleRef если он не был передан в конструкторе", async () => {
+			const lazyHandler = new MockMessageHandler();
+			const mockModuleRef = {
+				get: jest.fn().mockReturnValue(lazyHandler),
+			} as unknown as ModuleRef;
+
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				null,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			testService.setLazyHandlerDependencies(MockMessageHandler, mockModuleRef);
+
+			await testService.onModuleInit();
+
+			const runCall = mockConsumer.run.mock.calls[0]?.[0] as {
+				eachMessage: (payload: EachMessagePayload) => Promise<void>;
+			};
+			const eachMessageHandler = runCall.eachMessage;
+
+			const payload = createMockPayload(
+				"test-topic-1",
+				Buffer.from(JSON.stringify({ type: "TEST" }))
+			);
+
+			await eachMessageHandler(payload);
+
+			expect(mockModuleRef.get).toHaveBeenCalledWith(MockMessageHandler, { strict: false });
+			expect(lazyHandler.handleMessage).toHaveBeenCalledTimes(1);
+		});
+
+		it("должен залогировать ошибку если handler не доступен и не был установлен", async () => {
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				null,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			await testService.onModuleInit();
+
+			const runCall = mockConsumer.run.mock.calls[0]?.[0] as {
+				eachMessage: (payload: EachMessagePayload) => Promise<void>;
+			};
+			const eachMessageHandler = runCall.eachMessage;
+
+			const payload = createMockPayload(
+				"test-topic-1",
+				Buffer.from(JSON.stringify({ type: "TEST" }))
+			);
+
+			await eachMessageHandler(payload);
+
+			// Проверяем, что ошибка была залогирована
+			expect(mockLogger.error).toHaveBeenCalledWith(
+				"Error processing message from topic test-topic-1",
+				expect.any(String)
+			);
+		});
+
+		it("должен получить handler через getHandler при обработке сообщения", async () => {
+			const lazyHandler = new MockMessageHandler();
+			const mockModuleRef = {
+				get: jest.fn().mockReturnValue(lazyHandler),
+			} as unknown as ModuleRef;
+
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				null,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			testService.setLazyHandlerDependencies(MockMessageHandler, mockModuleRef);
+
+			await testService.onModuleInit();
+
+			const runCall = mockConsumer.run.mock.calls[0]?.[0] as {
+				eachMessage: (payload: EachMessagePayload) => Promise<void>;
+			};
+			const eachMessageHandler = runCall.eachMessage;
+
+			const payload = createMockPayload(
+				"test-topic-1",
+				Buffer.from(JSON.stringify({ type: "TEST", data: "test-data" }))
+			);
+
+			await eachMessageHandler(payload);
+
+			expect(lazyHandler.handleMessage).toHaveBeenCalledWith(
+				"test-topic-1",
+				{
+					type: "TEST",
+					data: "test-data",
+				},
+				{}
+			);
+		});
+
+		it("должен использовать handler из конструктора если он доступен, даже если установлены lazy зависимости", async () => {
+			const constructorHandler = {
+				handleMessage: jest.fn().mockResolvedValue({ success: true }),
+			} as unknown as KafkaMessageHandler;
+
+			const lazyHandler = new MockMessageHandler();
+			const mockModuleRef = {
+				get: jest.fn().mockReturnValue(lazyHandler),
+			} as unknown as ModuleRef;
+
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				constructorHandler,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			testService.setLazyHandlerDependencies(MockMessageHandler, mockModuleRef);
+
+			await testService.onModuleInit();
+
+			const runCall = mockConsumer.run.mock.calls[0]?.[0] as {
+				eachMessage: (payload: EachMessagePayload) => Promise<void>;
+			};
+			const eachMessageHandler = runCall.eachMessage;
+
+			const payload = createMockPayload(
+				"test-topic-1",
+				Buffer.from(JSON.stringify({ type: "TEST" }))
+			);
+
+			await eachMessageHandler(payload);
+
+			expect(constructorHandler.handleMessage).toHaveBeenCalledTimes(1);
+			expect(mockModuleRef.get).not.toHaveBeenCalled();
+			expect(lazyHandler.handleMessage).not.toHaveBeenCalled();
+		});
+
+		it("должен вернуть messageHandler из конструктора при вызове getHandler", () => {
+			const constructorHandler = {
+				handleMessage: jest.fn().mockResolvedValue({ success: true }),
+			} as unknown as KafkaMessageHandler;
+
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				constructorHandler,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			// Вызываем приватный метод getHandler через reflection
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const getHandlerMethod = (testService as any)["getHandler"].bind(testService);
+			const result = getHandlerMethod();
+
+			expect(result).toBe(constructorHandler);
+		});
+
+		it("должен использовать messageHandler напрямую в handleMessage когда он не null, не вызывая getHandler", async () => {
+			const constructorHandler = {
+				handleMessage: jest.fn().mockResolvedValue({ success: true }),
+			} as unknown as KafkaMessageHandler;
+
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				constructorHandler,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			// Создаем spy на getHandler чтобы убедиться, что он не вызывается
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const getHandlerSpy = jest.spyOn(testService as any, "getHandler");
+
+			await testService.onModuleInit();
+
+			const runCall = mockConsumer.run.mock.calls[0]?.[0] as {
+				eachMessage: (payload: EachMessagePayload) => Promise<void>;
+			};
+			const eachMessageHandler = runCall.eachMessage;
+
+			const payload = createMockPayload(
+				"test-topic-1",
+				Buffer.from(JSON.stringify({ type: "TEST" }))
+			);
+
+			await eachMessageHandler(payload);
+
+			// Проверяем, что getHandler не был вызван, так как messageHandler не null
+			expect(getHandlerSpy).not.toHaveBeenCalled();
+			expect(constructorHandler.handleMessage).toHaveBeenCalledTimes(1);
+
+			getHandlerSpy.mockRestore();
+		});
+
+		it("должен получить handler через ModuleRef при вызове getHandler когда messageHandler null", () => {
+			const lazyHandler = new MockMessageHandler();
+			const mockModuleRef = {
+				get: jest.fn().mockReturnValue(lazyHandler),
+			} as unknown as ModuleRef;
+
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				null,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			testService.setLazyHandlerDependencies(MockMessageHandler, mockModuleRef);
+
+			// Вызываем приватный метод getHandler через reflection
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const getHandlerMethod = (testService as any)["getHandler"].bind(testService);
+			const result = getHandlerMethod();
+
+			expect(result).toBe(lazyHandler);
+			expect(mockModuleRef.get).toHaveBeenCalledWith(MockMessageHandler, { strict: false });
+		});
+
+		it("должен выбросить ошибку при вызове getHandler когда handler не доступен", () => {
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				null,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			// Вызываем приватный метод getHandler через reflection
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const getHandlerMethod = (testService as any)["getHandler"].bind(testService);
+
+			expect(() => getHandlerMethod()).toThrow(KafkaClientError);
+			expect(() => getHandlerMethod()).toThrow("Message handler not available");
+		});
+
+		it("должен выбросить ошибку при вызове getHandler когда handlerClass установлен но moduleRef нет", () => {
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				null,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			// Устанавливаем только handlerClass без moduleRef
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(testService as any).handlerClass = MockMessageHandler;
+
+			// Вызываем приватный метод getHandler через reflection
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const getHandlerMethod = (testService as any)["getHandler"].bind(testService);
+
+			expect(() => getHandlerMethod()).toThrow(KafkaClientError);
+			expect(() => getHandlerMethod()).toThrow("Message handler not available");
+		});
+
+		it("должен выбросить ошибку при вызове getHandler когда moduleRef установлен но handlerClass нет", () => {
+			const mockModuleRef = {
+				get: jest.fn().mockReturnValue(new MockMessageHandler()),
+			} as unknown as ModuleRef;
+
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				null,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			// Устанавливаем только moduleRef без handlerClass
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(testService as any).moduleRef = mockModuleRef;
+
+			// Вызываем приватный метод getHandler через reflection
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const getHandlerMethod = (testService as any)["getHandler"].bind(testService);
+
+			expect(() => getHandlerMethod()).toThrow(KafkaClientError);
+			expect(() => getHandlerMethod()).toThrow("Message handler not available");
+		});
+
+		it("должен выбросить ошибку при вызове getHandler когда handlerClass undefined и moduleRef undefined", () => {
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				null,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			// Явно устанавливаем undefined для обоих полей
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(testService as any).handlerClass = undefined;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(testService as any).moduleRef = undefined;
+
+			// Вызываем приватный метод getHandler через reflection
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const getHandlerMethod = (testService as any)["getHandler"].bind(testService);
+
+			expect(() => getHandlerMethod()).toThrow(KafkaClientError);
+			expect(() => getHandlerMethod()).toThrow("Message handler not available");
+		});
+
+		it("должен выбросить ошибку при вызове getHandler когда handlerClass null и moduleRef null", () => {
+			const testService = new KafkaConsumerService(
+				mockOptions,
+				null,
+				mockKafkaClientService,
+				mockLogger
+			);
+
+			// Явно устанавливаем null для обоих полей
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(testService as any).handlerClass = null;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			(testService as any).moduleRef = null;
+
+			// Вызываем приватный метод getHandler через reflection
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const getHandlerMethod = (testService as any)["getHandler"].bind(testService);
+
+			expect(() => getHandlerMethod()).toThrow(KafkaClientError);
+			expect(() => getHandlerMethod()).toThrow("Message handler not available");
 		});
 	});
 });
