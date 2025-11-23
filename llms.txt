@@ -15,40 +15,40 @@
 
 ```
 src/
-├── core/                          # Низкоуровневый API
-│   ├── kafka.core.ts              # KafkaCore - основной класс
-│   ├── patterns/                  # Паттерны отправки сообщений
+├── core/                                 # Низкоуровневый API
+│   ├── kafka.core.ts                     # KafkaCore - основной класс
+│   ├── patterns/                         # Паттерны отправки сообщений
 │   │   ├── fire-and-forget.pattern.ts    # Fire-and-Forget паттерн
 │   │   └── request-reply.pattern.ts      # Request-Reply паттерн
-│   └── retry/                     # Retry и DLQ механизмы
-│       ├── retry-handler.ts       # Обработка retry с exponential backoff
-│       └── dlq-handler.ts         # Обработка Dead Letter Queue
+│   └── retry/                            # Retry и DLQ механизмы
+│       ├── retry-handler.ts              # Обработка retry с exponential backoff
+│       └── dlq-handler.ts                # Обработка Dead Letter Queue
 │
-├── main/                          # NestJS модули
-│   ├── client/                    # Базовый модуль подключения
-│   │   ├── kafka-client.module.ts # KafkaClientModule - базовый модуль
-│   │   └── kafka-client.service.ts # KafkaClientService - единое подключение
-│   ├── producer/                  # Producer модуль
-│   │   ├── kafka-producer.module.ts # KafkaProducerModule
-│   │   └── kafka-producer.service.ts # KafkaProducerService - отправка сообщений
-│   └── consumer/                  # Consumer модуль
-│       ├── kafka-consumer.module.ts # KafkaConsumerModule
-│       └── kafka-consumer.service.ts # KafkaConsumerService - получение сообщений
+├── main/                                 # NestJS модули
+│   ├── client/                           # Базовый модуль подключения
+│   │   ├── kafka-client.module.ts        # KafkaClientModule - базовый модуль
+│   │   └── kafka-client.service.ts       # KafkaClientService - единое подключение
+│   ├── producer/                         # Producer модуль
+│   │   ├── kafka-producer.module.ts      # KafkaProducerModule
+│   │   └── kafka-producer.service.ts     # KafkaProducerService - отправка сообщений
+│   └── consumer/                         # Consumer модуль
+│       ├── kafka-consumer.module.ts      # KafkaConsumerModule
+│       └── kafka-consumer.service.ts     # KafkaConsumerService - получение сообщений
 │
-├── types/                         # TypeScript типы и интерфейсы
-│   ├── kafka-topics.ts           # Enum KafkaTopic и конфигурация топиков
-│   ├── kafka-message.ts          # Типы сообщений
-│   ├── module-options.interface.ts # Опции модулей
-│   ├── kafka-core.options.interface.ts # Опции KafkaCore
+├── types/                                # TypeScript типы и интерфейсы
+│   ├── kafka-topics.ts                   # Enum KafkaTopic и конфигурация топиков
+│   ├── kafka-message.ts                  # Типы сообщений
+│   ├── module-options.interface.ts       # Опции модулей
+│   ├── kafka-core.options.interface.ts   # Опции KafkaCore
 │   ├── request-reply-options.interface.ts # Опции Request-Reply
-│   ├── retry-handler.interface.ts # Опции Retry
-│   └── dlq-handler.interface.ts  # Опции DLQ
+│   ├── retry-handler.interface.ts        # Опции Retry
+│   └── dlq-handler.interface.ts          # Опции DLQ
 │
-├── errors/                        # Кастомные ошибки
-│   ├── kafka-client.error.ts      # KafkaClientError
-│   └── rpc-request.error.ts      # RpcRequestError
+├── errors/                               # Кастомные ошибки
+│   ├── kafka-client.error.ts             # KafkaClientError
+│   └── rpc-request.error.ts              # RpcRequestError
 │
-└── index.ts                       # Точка входа - экспорты всех публичных API
+└── index.ts                              # Точка входа - экспорты всех публичных API
 ```
 
 ## Основные компоненты
@@ -74,11 +74,15 @@ src/
 
 Базовый модуль для единого подключения к Kafka. Должен быть импортирован ПЕРЕД KafkaProducerModule и KafkaConsumerModule.
 
-Методы инициализации:
-- `forRoot(options)` - синхронная инициализация
+Метод инициализации:
 - `forRootAsync(options)` - асинхронная инициализация через useFactory
 
-Опции:
+Параметры:
+- `useFactory: (deps) => KafkaClientModuleOptions` - фабрика для создания опций модуля
+- `inject?: InjectionToken[]` - зависимости для инжекции в useFactory
+- `imports?: Module[]` - дополнительные модули для DI
+
+Опции (возвращаемые useFactory):
 - `brokers: string[]` - адреса Kafka брокеров
 - `clientId: string` - ID клиента
 - `responseTopics?: string[]` - топики для ответов (для Request-Reply)
@@ -91,10 +95,13 @@ src/
 
 #### KafkaProducerModule
 
-Модуль для отправки сообщений. Требует импорта KafkaClientModule перед собой.
+Модуль для отправки сообщений. Требует импорта KafkaClientModule.forRootAsync() перед собой.
 
 Метод инициализации:
-- `forRoot()` - без параметров
+- `forRootAsync(options?)` - с опциональными параметрами
+
+Параметры (опционально):
+- `imports?: Module[]` - дополнительные модули для DI
 
 Экспортирует: `KafkaProducerService`
 
@@ -119,14 +126,18 @@ src/
 
 #### KafkaConsumerModule
 
-Модуль для получения и обработки сообщений. Требует импорта KafkaClientModule перед собой.
+Модуль для получения и обработки сообщений. Требует импорта KafkaClientModule.forRootAsync() перед собой.
 
 Метод инициализации:
-- `forRoot(options)` - с опциями:
+- `forRootAsync(options)` - с опциями через useFactory
+
+Параметры:
+- `useFactory: (deps?) => KafkaConsumerModuleOptions` - фабрика для создания опций модуля
   - `topics: KafkaTopic[]` - массив топиков для подписки
   - `groupId: string` - уникальный ID consumer group
   - `messageHandler: KafkaMessageHandler` - класс handler'а
-  - `imports?: Module[]` - дополнительные модули для DI зависимостей handler'а
+- `inject?: InjectionToken[]` - зависимости для инжекции в useFactory (опционально)
+- `imports?: Module[]` - дополнительные модули для DI зависимостей handler'а
 
 Экспортирует: `KafkaConsumerService`, `messageHandler` (ваш handler)
 
@@ -163,8 +174,8 @@ interface KafkaMessageHandler {
 Пример:
 ```typescript
 await kafkaProducer.sendFireAndForget(
-  KafkaTopic.DASHBOARD_ALERTS_EVENTS,
-  { userId: '123', alert: { ... } }
+  KafkaTopic.TEST_EVENTS,
+  { userId: '123', data: { ... } }
 );
 ```
 
@@ -189,8 +200,8 @@ await kafkaProducer.sendFireAndForget(
 Пример:
 ```typescript
 const response = await kafkaProducer.sendCommand(
-  KafkaTopic.DASHBOARD_BYBIT_COMMANDS,
-  KafkaTopic.DASHBOARD_BYBIT_RESPONSES,
+  KafkaTopic.TEST_COMMANDS,
+  KafkaTopic.TEST_RESPONSES,
   command,
   30000, // timeout
   { 'user-id': '123' } // дополнительные заголовки
@@ -219,7 +230,7 @@ const response = await kafkaProducer.sendCommand(
 
 DLQ топик: `{original-topic}-dlq`
 
-Пример: `dashboard-bybit-commands` → `dashboard-bybit-dlq`
+Пример: `test-commands` → `test-dlq`
 
 Headers в DLQ:
 - `original-topic` - исходный топик
@@ -230,14 +241,10 @@ Headers в DLQ:
 
 ## Типы топиков
 
-Enum `KafkaTopic` содержит все доступные топики:
+Enum `KafkaTopic` содержит тестовые топики:
 
-- `DASHBOARD_BYBIT_COMMANDS` / `DASHBOARD_BYBIT_RESPONSES` / `DASHBOARD_BYBIT_DLQ`
-- `DASHBOARD_ALERTS_COMMANDS` / `DASHBOARD_ALERTS_RESPONSES` / `DASHBOARD_ALERTS_EVENTS` / `DASHBOARD_ALERTS_DLQ`
-- `DASHBOARD_SETTINGS_COMMANDS` / `DASHBOARD_SETTINGS_RESPONSES` / `DASHBOARD_SETTINGS_DLQ`
-- `CHAT_SERVICE_COMMANDS` / `CHAT_SERVICE_RESPONSES` / `CHAT_SERVICE_STREAMING` / `CHAT_SERVICE_DLQ`
-- `MCP_TOOLS_COMMANDS` / `MCP_TOOLS_RESPONSES` / `MCP_TOOLS_DLQ`
-- `SYSTEM_ERRORS`
+- `TEST_COMMANDS` / `TEST_RESPONSES` / `TEST_DLQ` - тестовые команды и ответы
+- `TEST_EVENTS` - тестовые события (для Fire-and-Forget)
 
 Каждый топик имеет конфигурацию в `KAFKA_TOPIC_CONFIG` с настройками партиций и retention.
 
@@ -269,15 +276,15 @@ throw new RpcException({
 
 ВАЖНО: Строгий порядок импорта модулей:
 
-1. `KafkaClientModule.forRoot()` или `KafkaClientModule.forRootAsync()` - БАЗОВЫЙ модуль (обязательно первым!)
-2. `KafkaProducerModule.forRoot()` - для отправки сообщений
-3. `KafkaConsumerModule.forRoot()` - для получения сообщений
+1. `KafkaClientModule.forRootAsync()` - БАЗОВЫЙ модуль (обязательно первым!)
+2. `KafkaProducerModule.forRootAsync()` - для отправки сообщений
+3. `KafkaConsumerModule.forRootAsync()` - для получения сообщений
 
 ## Переменные окружения
 
 Требуемые переменные:
 - `KAFKA_BROKERS` - адреса брокеров (например, `localhost:9093` или `kafka:9092`)
-- `KAFKA_CLIENT_ID` - ID клиента (например, `api-service` или `dashboard-service`)
+- `KAFKA_CLIENT_ID` - ID клиента (например, `test-service`)
 
 ## Экспорты (index.ts)
 
@@ -307,31 +314,32 @@ throw new RpcException({
 
 ## Типичные сценарии использования
 
-### api-service (отправляет команды)
+### test-sender-service (отправляет команды)
 
 1. Импортировать `KafkaClientModule.forRootAsync()` с `responseTopics`
-2. Импортировать `KafkaProducerModule.forRoot()`
+2. Импортировать `KafkaProducerModule.forRootAsync()`
 3. Использовать `KafkaProducerService.sendCommand()` для Request-Reply
 4. Использовать `KafkaProducerService.sendFireAndForget()` для Fire-and-Forget
 
-### dashboard-service (обрабатывает команды)
+### test-receiver-service (обрабатывает команды)
 
 1. Импортировать `KafkaClientModule.forRootAsync()`
-2. Импортировать `KafkaConsumerModule.forRoot()` с `topics` и `messageHandler`
+2. Импортировать `KafkaConsumerModule.forRootAsync()` с `topics` и `messageHandler` через `useFactory`
 3. Реализовать `KafkaMessageHandler` интерфейс в handler'е
 4. Обработать команды через `handleMessage()`
 5. Возвращать результат для Request-Reply или `undefined` для Fire-and-Forget
 
 ## Важные замечания
 
-1. **Порядок импорта**: KafkaClientModule всегда должен быть первым
-2. **Request-Reply инициализация**: Требует указания `responseTopics` в KafkaClientModule
-3. **Handler зависимости**: Добавляйте необходимые модули в `imports` опции KafkaConsumerModule
-4. **Graceful shutdown**: Все модули автоматически отключаются при остановке приложения
-5. **Единое подключение**: KafkaClientService создает единое подключение для всего приложения
-6. **Уникальные groupId**: Каждый KafkaConsumerModule должен иметь уникальный `groupId`
-7. **Headers**: Заголовки автоматически преобразуются из формата Kafka в `Record<string, string>`
-8. **Timeout**: По умолчанию 30 секунд, можно переопределить в `sendCommand()`
+1. **Порядок импорта**: KafkaClientModule.forRootAsync() всегда должен быть первым
+2. **Только forRootAsync**: Все модули используют только метод `forRootAsync()` (нет синхронного `forRoot()`)
+3. **Request-Reply инициализация**: Требует указания `responseTopics` в KafkaClientModule.forRootAsync()
+4. **Handler зависимости**: Добавляйте необходимые модули в `imports` опции KafkaConsumerModule.forRootAsync()
+5. **Graceful shutdown**: Все модули автоматически отключаются при остановке приложения
+6. **Единое подключение**: KafkaClientService создает единое подключение для всего приложения
+7. **Уникальные groupId**: Каждый KafkaConsumerModule должен иметь уникальный `groupId`
+8. **Headers**: Заголовки автоматически преобразуются из формата Kafka в `Record<string, string>`
+9. **Timeout**: По умолчанию 30 секунд, можно переопределить в `sendCommand()`
 
 ## Тестирование
 

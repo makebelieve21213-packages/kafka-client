@@ -38,7 +38,7 @@
 ## 📦 Установка
 
 ```bash
-pnpm install @packages/kafka-client
+npm install @packages/kafka-client
 ```
 
 ### Зависимости
@@ -103,11 +103,11 @@ services:
     ports:
       - "9092:9092"
 
-  api-service:
+  test-service:
     build: .
     environment:
       KAFKA_BROKERS: kafka:9092
-      KAFKA_CLIENT_ID: api-service
+      KAFKA_CLIENT_ID: test-service
     depends_on:
       - kafka
 ```
@@ -116,43 +116,43 @@ services:
 
 ```
 src/
-├── core/                          # Низкоуровневый API
-│   ├── kafka.core.ts              # Основной класс KafkaCore
-│   ├── patterns/                  # Паттерны отправки сообщений
+├── core/                                 # Низкоуровневый API
+│   ├── kafka.core.ts                     # Основной класс KafkaCore
+│   ├── patterns/                         # Паттерны отправки сообщений
 │   │   ├── fire-and-forget.pattern.ts    # Fire-and-Forget паттерн
 │   │   └── request-reply.pattern.ts      # Request-Reply паттерн
-│   └── retry/                     # Retry и DLQ механизмы
-│       ├── retry-handler.ts       # Обработка retry
-│       └── dlq-handler.ts         # Обработка DLQ
+│   └── retry/                            # Retry и DLQ механизмы
+│       ├── retry-handler.ts              # Обработка retry
+│       └── dlq-handler.ts                # Обработка DLQ
 │
-├── main/                          # NestJS модули (РЕКОМЕНДУЕТСЯ)
-│   ├── client/                    # Базовый модуль подключения
-│   │   ├── kafka-client.module.ts # KafkaClientModule
-│   │   └── kafka-client.service.ts # KafkaClientService
-│   ├── producer/                  # Producer модуль
-│   │   ├── kafka-producer.module.ts # KafkaProducerModule
-│   │   └── kafka-producer.service.ts # KafkaProducerService
-│   └── consumer/                  # Consumer модуль
-│       ├── kafka-consumer.module.ts # KafkaConsumerModule
-│       └── kafka-consumer.service.ts # KafkaConsumerService
+├── main/                                 # NestJS модули (РЕКОМЕНДУЕТСЯ)
+│   ├── client/                           # Базовый модуль подключения
+│   │   ├── kafka-client.module.ts        # KafkaClientModule
+│   │   └── kafka-client.service.ts       # KafkaClientService
+│   ├── producer/                         # Producer модуль
+│   │   ├── kafka-producer.module.ts      # KafkaProducerModule
+│   │   └── kafka-producer.service.ts     # KafkaProducerService
+│   └── consumer/                         # Consumer модуль
+│       ├── kafka-consumer.module.ts      # KafkaConsumerModule
+│       └── kafka-consumer.service.ts     # KafkaConsumerService
 │
-├── types/                         # TypeScript типы и интерфейсы
-│   ├── kafka-topics.ts           # Enum топиков и конфигурация
-│   ├── kafka-message.ts          # Типы сообщений
-│   ├── module-options.interface.ts # Опции модулей
-│   ├── kafka-core.options.interface.ts # Опции KafkaCore
+├── types/                                # TypeScript типы и интерфейсы
+│   ├── kafka-topics.ts                   # Enum топиков и конфигурация
+│   ├── kafka-message.ts                  # Типы сообщений
+│   ├── module-options.interface.ts       # Опции модулей
+│   ├── kafka-core.options.interface.ts   # Опции KafkaCore
 │   ├── request-reply-options.interface.ts # Опции Request-Reply
-│   ├── retry-handler.interface.ts # Опции Retry
-│   └── dlq-handler.interface.ts  # Опции DLQ
+│   ├── retry-handler.interface.ts        # Опции Retry
+│   └── dlq-handler.interface.ts          # Опции DLQ
 │
-├── errors/                        # Кастомные ошибки
-│   ├── kafka-client.error.ts      # KafkaClientError
-│   └── rpc-request.error.ts      # RpcRequestError
+├── errors/                               # Кастомные ошибки
+│   ├── kafka-client.error.ts             # KafkaClientError
+│   └── rpc-request.error.ts              # RpcRequestError
 │
-├── utils/                         # Утилиты
-│   └── injection-keys.ts         # Ключи для DI
+├── utils/                                # Утилиты
+│   └── injection-keys.ts                 # Ключи для DI
 │
-└── index.ts                       # Точка входа (экспорты)
+└── index.ts                              # Точка входа (экспорты)
 ```
 
 ## 🏗️ Архитектура
@@ -197,7 +197,7 @@ import { KafkaClientModule, KafkaTopic } from '@packages/kafka-client';
       useFactory: (config: KafkaConfiguration) => ({
         brokers: config.brokers,
         clientId: config.clientId,
-        responseTopics: [KafkaTopic.DASHBOARD_BYBIT_RESPONSES], // Для Request-Reply
+        responseTopics: [KafkaTopic.TEST_RESPONSES], // Для Request-Reply
         defaultTimeout: 30000, // Таймаут по умолчанию
         connectionTimeout: 10000, // Таймаут подключения (опционально)
         requestTimeout: 30000, // Таймаут запроса (опционально)
@@ -216,7 +216,7 @@ export class AppModule {}
 
 ### Шаг 2: Producer (отправка команд)
 
-**Для api-service** (отправляет команды и ждет ответы):
+**Для отправляющего собщения сервера** (отправляет команды и ждет ответы):
 
 ```typescript
 // app.module.ts
@@ -225,76 +225,33 @@ import { KafkaProducerModule } from '@packages/kafka-client';
 @Module({
   imports: [
     KafkaClientModule.forRootAsync(...), // Из шага 1
-    KafkaProducerModule.forRoot(), // Producer модуль
+    KafkaProducerModule.forRootAsync(), // Producer модуль
   ],
 })
 export class AppModule {}
 ```
 
-```typescript
-// bybit.service.ts
-import { Injectable } from '@nestjs/common';
-import { KafkaProducerService, KafkaTopic, BybitCommandType } from '@packages/kafka-client';
-
-@Injectable()
-export class BybitService {
-  constructor(private readonly kafkaProducer: KafkaProducerService) {}
-
-  async connect(dto: ConnectDto) {
-    // Request-Reply: отправка команды и ожидание ответа
-    const response = await this.kafkaProducer.sendCommand(
-      KafkaTopic.DASHBOARD_BYBIT_COMMANDS,
-      KafkaTopic.DASHBOARD_BYBIT_RESPONSES,
-      {
-        id: randomUUID(),
-        type: BybitCommandType.CONNECT,
-        userId: dto.userId,
-        payload: {
-          apiKey: dto.apiKey,
-          apiSecret: dto.apiSecret,
-        },
-        timestamp: Date.now(),
-      },
-      30000, // timeout в миллисекундах (опционально)
-      { 'user-id': dto.userId } // дополнительные заголовки (опционально)
-    );
-
-    return response;
-  }
-
-  async sendNotification() {
-    // Fire-and-Forget: отправка без ожидания ответа
-    await this.kafkaProducer.sendFireAndForget(
-      KafkaTopic.DASHBOARD_ALERTS_EVENTS,
-      {
-        userId: '123',
-        alert: { ... },
-        timestamp: new Date().toISOString(),
-      }
-    );
-  }
-}
-```
-
 ### Шаг 3: Consumer (обработка команд)
 
-**Для dashboard-service** (принимает команды и отправляет ответы):
+**Для принимающего сообщения сервера** (принимает команды и отправляет ответы):
 
 ```typescript
 // app.module.ts
 import { KafkaConsumerModule, KafkaTopic } from '@packages/kafka-client';
-import { BybitModule } from './bybit/bybit.module';
-import { BybitHandlerService } from './bybit-message.handler';
+import { TestModule } from './test/test.module';
+import { TestHandlerService } from './test-message.handler';
 
 @Module({
   imports: [
     KafkaClientModule.forRootAsync(...), // Из шага 1
-    BybitModule, // Модуль с зависимостями handler'а
-    KafkaConsumerModule.forRoot({
-      topics: [KafkaTopic.DASHBOARD_BYBIT_COMMANDS],
-      groupId: 'dashboard-service-bybit-consumer',
-      messageHandler: BybitHandlerService,
-      imports: [BybitModule], // Дополнительные модули для DI
+    TestModule, // Модуль с зависимостями handler'а
+    KafkaConsumerModule.forRootAsync({
+      useFactory: () => ({
+        topics: [KafkaTopic.TEST_COMMANDS],
+        groupId: 'test-consumer',
+        messageHandler: TestHandlerService,
+      }),
+      imports: [TestModule], // Дополнительные модули для DI
     }),
   ],
 })
@@ -302,24 +259,24 @@ export class AppModule {}
 ```
 
 ```typescript
-// bybit-message.handler.ts
+// test-message.handler.ts
 import { Injectable } from '@nestjs/common';
-import { KafkaMessageHandler, BybitCommandType } from '@packages/kafka-client';
-import { BybitService } from './bybit.service';
-import type { BybitCommand } from '@packages/kafka-client';
+import { KafkaMessageHandler, TestCommandType } from '@packages/kafka-client';
+import { TestService } from './test.service';
+import type { TestCommand } from '@packages/kafka-client';
 import { RpcException } from '@nestjs/microservices';
 import { HttpStatus } from '@packages/types';
 
 @Injectable()
-export class BybitHandlerService implements KafkaMessageHandler {
-  constructor(private readonly bybitService: BybitService) {}
+export class TestHandlerService implements KafkaMessageHandler {
+  constructor(private readonly testService: TestService) {}
 
   async handleMessage(
     topic: string, 
     message: unknown, 
     headers?: Record<string, string>
   ): Promise<unknown> {
-    const command = message as BybitCommand;
+    const command = message as TestCommand;
 
     // Используйте headers для логирования или трейсинга
     const correlationId = headers?.['correlation-id'];
@@ -328,15 +285,15 @@ export class BybitHandlerService implements KafkaMessageHandler {
     }
 
     switch (command.type) {
-      case BybitCommandType.CONNECT:
-        return await this.bybitService.connect({
+      case TestCommandType.CONNECT:
+        return await this.testService.connect({
           userId: command.userId,
           apiKey: command.payload.apiKey,
           apiSecret: command.payload.apiSecret,
         });
 
-      case BybitCommandType.GET_BALANCE:
-        return await this.bybitService.getBalance(command.payload.accountType);
+      case TestCommandType.GET_BALANCE:
+        return await this.testService.getBalance(command.payload.accountType);
 
       default:
         throw new RpcException({
@@ -362,25 +319,7 @@ export class BybitHandlerService implements KafkaMessageHandler {
 
 **Назначение:** Единое подключение к Kafka для всего приложения.
 
-**Методы инициализации:**
-
-#### `forRoot(options)`
-
-```typescript
-KafkaClientModule.forRoot({
-  brokers: ['localhost:9093'],
-  clientId: 'api-service',
-  responseTopics?: [KafkaTopic.DASHBOARD_BYBIT_RESPONSES], // Для Request-Reply
-  defaultTimeout?: 30000, // Таймаут по умолчанию (мс)
-  connectionTimeout?: 10000, // Таймаут подключения (мс)
-  requestTimeout?: 30000, // Таймаут запроса (мс)
-  retry?: { // Настройки retry для подключения
-    retries?: 8,
-    initialRetryTime?: 300,
-    maxRetryTime?: 30000,
-  },
-})
-```
+**Метод инициализации:**
 
 #### `forRootAsync(options)`
 
@@ -400,6 +339,11 @@ KafkaClientModule.forRootAsync<[KafkaConfiguration]>({
 })
 ```
 
+**Параметры:**
+- `useFactory: (deps) => KafkaClientModuleOptions` - фабрика для создания опций модуля
+- `inject?: InjectionToken[]` - зависимости для инжекции в useFactory
+- `imports?: Module[]` - дополнительные модули для DI
+
 **Экспортирует:** `KafkaClientService` (для внутреннего использования)
 
 **ВАЖНО:** Этот модуль должен быть импортирован **ПЕРЕД** `KafkaProducerModule` и `KafkaConsumerModule`.
@@ -408,13 +352,18 @@ KafkaClientModule.forRootAsync<[KafkaConfiguration]>({
 
 **Назначение:** Модуль для отправки сообщений (Fire-and-Forget и Request-Reply).
 
-**ВАЖНО:** Требует импорта `KafkaClientModule.forRoot()` перед собой.
+**ВАЖНО:** Требует импорта `KafkaClientModule.forRootAsync()` перед собой.
 
-#### `forRoot()`
+#### `forRootAsync(options?)`
 
 ```typescript
-KafkaProducerModule.forRoot()
+KafkaProducerModule.forRootAsync({
+  imports?: [ConfigModule], // Опционально: дополнительные модули для DI
+})
 ```
+
+**Параметры:**
+- `imports?: Module[]` - дополнительные модули для DI (опционально)
 
 **Экспортирует:** `KafkaProducerService`
 
@@ -438,8 +387,8 @@ Request-Reply паттерн - отправка команды с ожидани
 **Пример:**
 ```typescript
 const response = await kafkaProducer.sendCommand(
-  KafkaTopic.DASHBOARD_BYBIT_COMMANDS,
-  KafkaTopic.DASHBOARD_BYBIT_RESPONSES,
+  KafkaTopic.TEST_COMMANDS,
+  KafkaTopic.TEST_RESPONSES,
   command,
   30000, // timeout
   { 'user-id': '123' } // дополнительные заголовки
@@ -459,8 +408,8 @@ Fire-and-Forget паттерн - отправка сообщения без ож
 **Пример:**
 ```typescript
 await kafkaProducer.sendFireAndForget(
-  KafkaTopic.DASHBOARD_ALERTS_EVENTS,
-  { userId: '123', alert: { ... } }
+  KafkaTopic.TEST_EVENTS,
+  { userId: '123', data: { ... } }
 );
 ```
 
@@ -480,23 +429,27 @@ console.log(`Kafka connected: ${isConnected}`);
 
 **Назначение:** Модуль для получения и обработки сообщений.
 
-**ВАЖНО:** Требует импорта `KafkaClientModule.forRoot()` перед собой.
+**ВАЖНО:** Требует импорта `KafkaClientModule.forRootAsync()` перед собой.
 
-#### `forRoot(options)`
+#### `forRootAsync(options)`
 
 ```typescript
-KafkaConsumerModule.forRoot({
-  topics: [KafkaTopic.DASHBOARD_BYBIT_COMMANDS],
-  groupId: 'dashboard-service-bybit-consumer',
-  messageHandler: BybitHandlerService,
-  imports?: [BybitModule], // Дополнительные модули для DI
+KafkaConsumerModule.forRootAsync({
+  useFactory: () => ({
+    topics: [KafkaTopic.TEST_COMMANDS],
+    groupId: 'test-consumer',
+    messageHandler: TestHandlerService,
+  }),
+  imports?: [TestModule], // Дополнительные модули для DI
 })
 ```
 
 **Параметры:**
-- `topics: KafkaTopic[]` - массив топиков для подписки
-- `groupId: string` - уникальный ID consumer group
-- `messageHandler: KafkaMessageHandler` - класс handler'а, реализующий интерфейс `KafkaMessageHandler`
+- `useFactory: (deps?) => KafkaConsumerModuleOptions` - фабрика для создания опций модуля
+  - `topics: KafkaTopic[]` - массив топиков для подписки
+  - `groupId: string` - уникальный ID consumer group
+  - `messageHandler: KafkaMessageHandler` - класс handler'а, реализующий интерфейс `KafkaMessageHandler`
+- `inject?: InjectionToken[]` - зависимости для инжекции в useFactory (опционально)
 - `imports?: Module[]` - дополнительные модули для DI зависимостей handler'а
 
 **Экспортирует:** `KafkaConsumerService`, `messageHandler` (ваш handler)
@@ -559,52 +512,29 @@ throw new RpcException({
 
 ```env
 KAFKA_BROKERS=localhost:9093
-KAFKA_CLIENT_ID=api-service  # или dashboard-service
+KAFKA_CLIENT_ID=test-service
 ```
 
-**Валидация в `envs-validate.ts`:**
+**Валидация `.env` переменных:**
 
-```typescript
-const ENVS_VALIDATE = [
-  // ...
-  "KAFKA_BROKERS",
-  "KAFKA_CLIENT_ID",
-];
+```env
+# Адреса Kafka брокеров (через запятую для нескольких брокеров)
+KAFKA_BROKERS=localhost:9093
+# или для Docker: kafka:9092
+# или для кластера: broker1:9092,broker2:9092,broker3:9092
+
+# Уникальный идентификатор клиента для вашего сервиса
+KAFKA_CLIENT_ID=test-service
 ```
 
 ## 🎯 Типы топиков
 
 ```typescript
 enum KafkaTopic {
-  // Bybit Dashboard топики
-  DASHBOARD_BYBIT_COMMANDS = 'dashboard-bybit-commands',
-  DASHBOARD_BYBIT_RESPONSES = 'dashboard-bybit-responses',
-  DASHBOARD_BYBIT_DLQ = 'dashboard-bybit-dlq',
-
-  // Alerts топики
-  DASHBOARD_ALERTS_COMMANDS = 'dashboard-alerts-commands',
-  DASHBOARD_ALERTS_RESPONSES = 'dashboard-alerts-responses',
-  DASHBOARD_ALERTS_EVENTS = 'dashboard-alerts-events',
-  DASHBOARD_ALERTS_DLQ = 'dashboard-alerts-dlq',
-
-  // Settings топики
-  DASHBOARD_SETTINGS_COMMANDS = 'dashboard-settings-commands',
-  DASHBOARD_SETTINGS_RESPONSES = 'dashboard-settings-responses',
-  DASHBOARD_SETTINGS_DLQ = 'dashboard-settings-dlq',
-
-  // Chat топики
-  CHAT_SERVICE_COMMANDS = 'chat-service-commands',
-  CHAT_SERVICE_RESPONSES = 'chat-service-responses',
-  CHAT_SERVICE_STREAMING = 'chat-service-streaming',
-  CHAT_SERVICE_DLQ = 'chat-service-dlq',
-
-  // MCP топики
-  MCP_TOOLS_COMMANDS = 'mcp-tools-commands',
-  MCP_TOOLS_RESPONSES = 'mcp-tools-responses',
-  MCP_TOOLS_DLQ = 'mcp-tools-dlq',
-
-  // Системные топики
-  SYSTEM_ERRORS = 'system-errors',
+  // Test топики
+  TEST_COMMANDS = 'test-commands',
+  TEST_RESPONSES = 'test-responses',
+  TEST_DLQ = 'test-dlq',
 }
 ```
 
@@ -614,10 +544,10 @@ enum KafkaTopic {
 
 ```typescript
 const KAFKA_TOPIC_CONFIG: Record<KafkaTopic, TopicConfig> = {
-  [KafkaTopic.DASHBOARD_BYBIT_COMMANDS]: {
+  [KafkaTopic.TEST_COMMANDS]: {
     partitions: 3,
     retentionHours: 168, // 7 дней
-    description: "Команды для Bybit дашборда",
+    description: "Тестовые команды",
   },
   // ... другие топики
 };
@@ -625,10 +555,10 @@ const KAFKA_TOPIC_CONFIG: Record<KafkaTopic, TopicConfig> = {
 
 ## 🧪 Как работает Request-Reply
 
-1. **api-service** → отправляет команду с `correlation-id` в `dashboard-bybit-commands`
-2. **dashboard-service** → получает команду, обрабатывает через `handleMessage()`
-3. **dashboard-service** → отправляет ответ с тем же `correlation-id` в `dashboard-bybit-responses`
-4. **api-service** → получает ответ и возвращает через Promise
+1. **test-sender-service** → отправляет команду с `correlation-id` в `test-commands`
+2. **test-receiver-service** → получает команду, обрабатывает через `handleMessage()`
+3. **test-receiver-service** → отправляет ответ с тем же `correlation-id` в `test-responses`
+4. **test-sender-service** → получает ответ и возвращает через Promise
 
 **Автоматически:**
 - Генерация `correlation-id`
@@ -649,12 +579,12 @@ import { LoggerService } from '@makebelieve21213-packages/logger';
 const kafkaCore = new KafkaCore(
   {
     kafka: {
-      clientId: 'api-service',
+      clientId: 'test-service',
       brokers: ['kafka:9092'],
     },
     requestReply: {
       defaultTimeout: 30000,
-      groupId: 'api-service-consumer',
+      groupId: 'test-service-consumer',
     },
     retry: {
       maxRetries: 3,
@@ -665,7 +595,7 @@ const kafkaCore = new KafkaCore(
       onMessage: async (payload) => {
         console.error('DLQ:', payload);
       },
-      groupId: 'api-service-dlq-consumer',
+      groupId: 'test-service-dlq-consumer',
     },
   },
   logger
@@ -674,10 +604,10 @@ const kafkaCore = new KafkaCore(
 await kafkaCore.connect();
 
 // Fire-and-Forget
-await kafkaCore.fireAndForget.send(KafkaTopic.DASHBOARD_BYBIT_COMMANDS, message);
+await kafkaCore.fireAndForget.send(KafkaTopic.TEST_COMMANDS, message);
 
 // Request-Reply
-kafkaCore.initRequestReply([KafkaTopic.DASHBOARD_BYBIT_RESPONSES]);
+kafkaCore.initRequestReply([KafkaTopic.TEST_RESPONSES]);
 await kafkaCore.requestReply!.startListening();
 const response = await kafkaCore.requestReply!.send(
   commandTopic, 
@@ -711,8 +641,8 @@ pnpm test:watch
 
 **Решение:**
 1. Увеличить timeout: `sendCommand(commandTopic, responseTopic, message, 60000)`
-2. Проверить, что dashboard-service запущен и слушает топик
-3. Проверить, что dashboard-service отправляет ответ с правильным correlation-id
+2. Проверить, что test-service запущен и слушает топик
+3. Проверить, что test-service отправляет ответ с правильным correlation-id
 4. Проверить логи consumer'а
 
 ### Сообщения не обрабатываются
@@ -720,7 +650,7 @@ pnpm test:watch
 **Проблема:** Сообщения отправляются, но не обрабатываются
 
 **Решение:**
-1. Проверить, что `KafkaClientModule.forRoot()` импортирован перед `KafkaConsumerModule.forRoot()`
+1. Проверить, что `KafkaClientModule.forRootAsync()` импортирован перед `KafkaConsumerModule.forRootAsync()`
 2. Проверить, что consumer подписан на правильный топик
 3. Проверить, что топик создан в Kafka
 4. Проверить логи consumer'а
@@ -731,15 +661,15 @@ pnpm test:watch
 **Проблема:** `Kafka Request-Reply not initialized`
 
 **Решение:**
-1. Убедиться, что `responseTopics` указаны в `KafkaClientModule.forRoot()`
-2. Проверить, что `KafkaClientModule.forRoot()` вызван перед `KafkaProducerModule.forRoot()`
+1. Убедиться, что `responseTopics` указаны в `KafkaClientModule.forRootAsync()`
+2. Проверить, что `KafkaClientModule.forRootAsync()` вызван перед `KafkaProducerModule.forRootAsync()`
 
 ### Handler не получает зависимости
 
 **Проблема:** `Error: Nest can't resolve dependencies`
 
 **Решение:**
-1. Добавить необходимые модули в `imports` опции `KafkaConsumerModule.forRoot()`
+1. Добавить необходимые модули в `imports` опции `KafkaConsumerModule.forRootAsync()`
 2. Убедиться, что handler'ы являются `@Injectable()` сервисами
 
 ### Проблемы с подключением в Docker
@@ -803,7 +733,7 @@ console.log(`Kafka connected: ${isConnected}`);
 
 ## 📄 Лицензия
 
-UNLICENSED (private package)
+MIT
 
 ## 👥 Автор
 
