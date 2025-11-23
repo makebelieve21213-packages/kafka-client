@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { ModuleRef } from "@nestjs/core";
 import KafkaConsumerModule from "src/main/consumer/kafka-consumer.module";
 import KafkaConsumerService from "src/main/consumer/kafka-consumer.service";
 import {
@@ -294,10 +295,16 @@ describe("KafkaConsumerModule", () => {
 				"useFactory" in handlerInstanceProvider &&
 				typeof handlerInstanceProvider.useFactory === "function"
 			) {
-				const handlerInstance = handlerInstanceProvider.useFactory(MockMessageHandler);
+				// Создаем мок ModuleRef
+				const mockModuleRef = {
+					get: jest.fn().mockReturnValue(new MockMessageHandler()),
+				} as unknown as ModuleRef;
+
+				const handlerInstance = handlerInstanceProvider.useFactory(MockMessageHandler, mockModuleRef);
 
 				expect(handlerInstance).toBeDefined();
 				expect(handlerInstance).toBeInstanceOf(MockMessageHandler);
+				expect(mockModuleRef.get).toHaveBeenCalledWith(MockMessageHandler, { strict: false });
 			}
 		});
 	});
