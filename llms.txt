@@ -129,14 +129,12 @@ src/
 Модуль для получения и обработки сообщений. Требует импорта KafkaClientModule.forRootAsync() перед собой.
 
 Метод инициализации:
-- `forRootAsync(options)` - с опциями через useFactory
+- `forRoot(options)` - регистрация модуля с прямыми опциями
 
 Параметры:
-- `useFactory: (deps?) => KafkaConsumerModuleOptions` - фабрика для создания опций модуля
-  - `topics: KafkaTopic[]` - массив топиков для подписки
-  - `groupId: string` - уникальный ID consumer group
-  - `messageHandler: KafkaMessageHandler` - класс handler'а
-- `inject?: InjectionToken[]` - зависимости для инжекции в useFactory (опционально)
+- `topics: KafkaTopic[]` - массив топиков для подписки
+- `groupId: string` - уникальный ID consumer group
+- `messageHandler: KafkaMessageHandler` - класс handler'а
 - `imports?: Module[]` - дополнительные модули для DI зависимостей handler'а
 
 Экспортирует: `KafkaConsumerService`, `messageHandler` (ваш handler)
@@ -278,7 +276,7 @@ throw new RpcException({
 
 1. `KafkaClientModule.forRootAsync()` - БАЗОВЫЙ модуль (обязательно первым!)
 2. `KafkaProducerModule.forRootAsync()` - для отправки сообщений
-3. `KafkaConsumerModule.forRootAsync()` - для получения сообщений
+3. `KafkaConsumerModule.forRoot()` - для получения сообщений
 
 ## Переменные окружения
 
@@ -306,7 +304,7 @@ throw new RpcException({
 - `KafkaMessageHandler` (интерфейс)
 - `KafkaClientModuleOptions` / `KafkaClientModuleAsyncOptions`
 - `KafkaProducerModuleOptions` / `KafkaProducerModuleAsyncOptions`
-- `KafkaConsumerModuleOptions` / `KafkaConsumerModuleAsyncOptions`
+- `KafkaConsumerModuleOptions`
 
 Ошибки:
 - `RpcRequestError` (default export)
@@ -324,7 +322,7 @@ throw new RpcException({
 ### test-receiver-service (обрабатывает команды)
 
 1. Импортировать `KafkaClientModule.forRootAsync()`
-2. Импортировать `KafkaConsumerModule.forRootAsync()` с `topics` и `messageHandler` через `useFactory`
+2. Импортировать `KafkaConsumerModule.forRoot()` с `topics` и `messageHandler`
 3. Реализовать `KafkaMessageHandler` интерфейс в handler'е
 4. Обработать команды через `handleMessage()`
 5. Возвращать результат для Request-Reply или `undefined` для Fire-and-Forget
@@ -332,9 +330,9 @@ throw new RpcException({
 ## Важные замечания
 
 1. **Порядок импорта**: KafkaClientModule.forRootAsync() всегда должен быть первым
-2. **Только forRootAsync**: Все модули используют только метод `forRootAsync()` (нет синхронного `forRoot()`)
+2. **Методы инициализации**: KafkaClientModule и KafkaProducerModule используют `forRootAsync()`, KafkaConsumerModule использует `forRoot()`
 3. **Request-Reply инициализация**: Требует указания `responseTopics` в KafkaClientModule.forRootAsync()
-4. **Handler зависимости**: Добавляйте необходимые модули в `imports` опции KafkaConsumerModule.forRootAsync()
+4. **Handler зависимости**: Добавляйте необходимые модули в `imports` опции KafkaConsumerModule.forRoot()
 5. **Graceful shutdown**: Все модули автоматически отключаются при остановке приложения
 6. **Единое подключение**: KafkaClientService создает единое подключение для всего приложения
 7. **Уникальные groupId**: Каждый KafkaConsumerModule должен иметь уникальный `groupId`

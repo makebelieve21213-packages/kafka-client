@@ -1,11 +1,4 @@
-import type {
-	DynamicModule,
-	ForwardReference,
-	InjectionToken,
-	ModuleMetadata,
-	OptionalFactoryDependency,
-	Type,
-} from "@nestjs/common";
+import type { DynamicModule, ForwardReference, Type } from "@nestjs/common";
 
 // Обработчик сообщений Kafka
 export interface KafkaMessageHandler {
@@ -22,23 +15,6 @@ export interface KafkaConsumerModuleOptions {
 	messageHandler: Type<KafkaMessageHandler>;
 	// Дополнительные модули для импорта (например, модули с зависимостями handler'а)
 	imports?: Array<Type<unknown> | DynamicModule | ForwardReference>;
-}
-
-// Тип для функции фабрики с динамическими аргументами
-type KafkaConsumerModuleOptionsFactory<T extends unknown[] = []> = (
-	...args: T
-) => Promise<KafkaConsumerModuleOptions> | KafkaConsumerModuleOptions;
-
-// Асинхронные опции для динамической конфигурации модуля через useFactory
-export interface KafkaConsumerModuleAsyncOptions<T extends unknown[] = []>
-	extends Pick<ModuleMetadata, "imports"> {
-	/**
-	 * Фабрика для создания опций
-	 * Аргументы функции соответствуют зависимостям из inject
-	 */
-	useFactory: KafkaConsumerModuleOptionsFactory<T>;
-	// Зависимости для инъекции в useFactory
-	inject?: (InjectionToken | OptionalFactoryDependency)[];
 }
 
 /**

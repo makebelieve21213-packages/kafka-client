@@ -14,7 +14,6 @@ export { default as KafkaProducerService } from "src/main/producer/kafka-produce
 export { default as KafkaConsumerModule } from "src/main/consumer/kafka-consumer.module";
 export type {
 	KafkaConsumerModuleOptions,
-	KafkaConsumerModuleAsyncOptions,
 	KafkaMessageHandler,
 } from "src/types/kafka-consumer-module.interface";
 export { default as KafkaConsumerService } from "src/main/consumer/kafka-consumer.service";

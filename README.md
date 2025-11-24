@@ -245,12 +245,10 @@ import { TestHandlerService } from './test-message.handler';
   imports: [
     KafkaClientModule.forRootAsync(...), // Из шага 1
     TestModule, // Модуль с зависимостями handler'а
-    KafkaConsumerModule.forRootAsync({
-      useFactory: () => ({
-        topics: [KafkaTopic.TEST_COMMANDS],
-        groupId: 'test-consumer',
-        messageHandler: TestHandlerService,
-      }),
+    KafkaConsumerModule.forRoot({
+      topics: [KafkaTopic.TEST_COMMANDS],
+      groupId: 'test-consumer',
+      messageHandler: TestHandlerService,
       imports: [TestModule], // Дополнительные модули для DI
     }),
   ],
@@ -431,25 +429,21 @@ console.log(`Kafka connected: ${isConnected}`);
 
 **ВАЖНО:** Требует импорта `KafkaClientModule.forRootAsync()` перед собой.
 
-#### `forRootAsync(options)`
+#### `forRoot(options)`
 
 ```typescript
-KafkaConsumerModule.forRootAsync({
-  useFactory: () => ({
-    topics: [KafkaTopic.TEST_COMMANDS],
-    groupId: 'test-consumer',
-    messageHandler: TestHandlerService,
-  }),
+KafkaConsumerModule.forRoot({
+  topics: [KafkaTopic.TEST_COMMANDS],
+  groupId: 'test-consumer',
+  messageHandler: TestHandlerService,
   imports?: [TestModule], // Дополнительные модули для DI
 })
 ```
 
 **Параметры:**
-- `useFactory: (deps?) => KafkaConsumerModuleOptions` - фабрика для создания опций модуля
-  - `topics: KafkaTopic[]` - массив топиков для подписки
-  - `groupId: string` - уникальный ID consumer group
-  - `messageHandler: KafkaMessageHandler` - класс handler'а, реализующий интерфейс `KafkaMessageHandler`
-- `inject?: InjectionToken[]` - зависимости для инжекции в useFactory (опционально)
+- `topics: KafkaTopic[]` - массив топиков для подписки
+- `groupId: string` - уникальный ID consumer group
+- `messageHandler: KafkaMessageHandler` - класс handler'а, реализующий интерфейс `KafkaMessageHandler`
 - `imports?: Module[]` - дополнительные модули для DI зависимостей handler'а
 
 **Экспортирует:** `KafkaConsumerService`, `messageHandler` (ваш handler)
@@ -650,7 +644,7 @@ pnpm test:watch
 **Проблема:** Сообщения отправляются, но не обрабатываются
 
 **Решение:**
-1. Проверить, что `KafkaClientModule.forRootAsync()` импортирован перед `KafkaConsumerModule.forRootAsync()`
+1. Проверить, что `KafkaClientModule.forRootAsync()` импортирован перед `KafkaConsumerModule.forRoot()`
 2. Проверить, что consumer подписан на правильный топик
 3. Проверить, что топик создан в Kafka
 4. Проверить логи consumer'а
@@ -669,7 +663,7 @@ pnpm test:watch
 **Проблема:** `Error: Nest can't resolve dependencies`
 
 **Решение:**
-1. Добавить необходимые модули в `imports` опции `KafkaConsumerModule.forRootAsync()`
+1. Добавить необходимые модули в `imports` опции `KafkaConsumerModule.forRoot()`
 2. Убедиться, что handler'ы являются `@Injectable()` сервисами
 
 ### Проблемы с подключением в Docker
