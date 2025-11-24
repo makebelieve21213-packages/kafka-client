@@ -5,6 +5,11 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 и этот проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.1.3] - 2025-11-24
+
+### Обновлено
+- Обновлена зависимость `@makebelieve21213-packages/logger` с версии `^1.0.5` до `^1.0.7`
+
 ## [1.1.2] - 2025-11-24
 
 ### Изменено
